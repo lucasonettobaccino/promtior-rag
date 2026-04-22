@@ -1,0 +1,195 @@
+###############################################################################
+# promtior-rag — pyproject.toml
+#
+# Single source of truth for:
+#   - Package metadata (PEP 621 standard, compatible with any modern tool)
+#   - Runtime + dev dependencies (managed by Poetry 2.x)
+#   - Tooling config: ruff (lint), black (format), mypy (types), pytest (tests)
+#
+# Pinning strategy:
+#   - Use caret (^X.Y) for libraries we trust to follow SemVer.
+#   - LangChain ecosystem is pinned to 1.x range explicitly because LangChain
+#     1.0 (Oct 2025) was a major rewrite. We want the modern runtime but
+#     avoid accidental jumps to a future 2.0.
+###############################################################################
+
+[project]
+name = "promtior-rag"
+version = "0.1.0"
+description = "Production-grade RAG chatbot for Promtior — LangChain + LangServe + AWS ECS Fargate"
+authors = [{ name = "Lucas Onetto Baccino", email = "lucasonettobaccino@hotmail.com" }]
+license = "MIT"
+readme = "README.md"
+requires-python = ">=3.11,<4.0"
+
+dependencies = [
+    # ---- LangChain ecosystem (v1.x, modern runtime) ---------------------- #
+    "langchain (>=1.1,<2.0)",
+    "langchain-core (>=1.2,<2.0)",
+    "langchain-classic (>=1.0,<2.0)",
+    "langchain-openai (>=1.1,<2.0)",
+    "langchain-community (>=0.3,<1.0)",
+    "langchain-cohere (>=0.4,<1.0)",
+    "langchain-text-splitters (>=1.0,<2.0)",
+
+    # ---- Serving layer --------------------------------------------------- #
+    "langserve[server] (>=0.3,<1.0)",
+    "fastapi (>=0.115,<1.0)",
+    "uvicorn[standard] (>=0.32,<1.0)",
+
+    # ---- Vector store + retrieval --------------------------------------- #
+    "faiss-cpu (>=1.9,<2.0)",
+    "rank-bm25 (>=0.2,<1.0)",
+
+    # ---- Data loaders --------------------------------------------------- #
+    "pypdf (>=5.1,<6.0)",
+    "beautifulsoup4 (>=4.12,<5.0)",
+    "lxml (>=5.3,<6.0)",
+    "httpx (>=0.28,<1.0)",
+
+    # ---- LLM / embeddings SDK clients ----------------------------------- #
+    "openai (>=1.57,<2.0)",
+    "cohere (>=5.13,<6.0)",
+    "tiktoken (>=0.8,<1.0)",
+
+    # ---- Observability -------------------------------------------------- #
+    "langsmith (>=0.2,<1.0)",
+
+    # ---- Configuration + logging --------------------------------------- #
+    "pydantic (>=2.10,<3.0)",
+    "pydantic-settings (>=2.7,<3.0)",
+    "structlog (>=24.4,<25.0)",
+    "python-dotenv (>=1.0,<2.0)",
+]
+
+[project.scripts]
+promtior-ingest = "promtior_rag.ingestion.pipeline:main"
+promtior-eval = "promtior_rag.evaluation.runner:main"
+promtior-serve = "promtior_rag.api.server:main"
+
+###############################################################################
+# Poetry-specific configuration (Poetry 2.x with PEP 621)
+###############################################################################
+[tool.poetry]
+packages = [{ include = "promtior_rag", from = "src" }]
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.3"
+pytest-asyncio = "^0.25"
+pytest-cov = "^6.0"
+pytest-mock = "^3.14"
+ruff = "^0.8"
+black = "^24.10"
+mypy = "^1.13"
+pre-commit = "^4.0"
+jupyter = "^1.1"
+ipykernel = "^6.29"
+
+[tool.poetry.group.eval]
+optional = true
+
+[tool.poetry.group.eval.dependencies]
+ragas = "^0.2"
+datasets = "^3.2"
+
+[tool.poetry.group.frontend]
+optional = true
+
+[tool.poetry.group.frontend.dependencies]
+streamlit = "^1.41"
+
+###############################################################################
+# Build system (required by Poetry 2.x)
+###############################################################################
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+###############################################################################
+# Ruff — linting
+###############################################################################
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort (import sorting)
+    "B",    # flake8-bugbear
+    "C4",   # flake8-comprehensions
+    "UP",   # pyupgrade
+    "SIM",  # flake8-simplify
+    "RUF",  # Ruff-specific rules
+    "N",    # pep8-naming
+    "D",    # pydocstyle (docstrings)
+]
+ignore = [
+    "D100",   # Missing docstring in public module
+    "D104",   # Missing docstring in public package
+    "D203",   # conflict with D211
+    "D213",   # conflict with D212
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["D"]
+"notebooks/**/*.py" = ["D", "E501"]
+
+###############################################################################
+# Black — formatting
+###############################################################################
+[tool.black]
+line-length = 100
+target-version = ["py311"]
+
+###############################################################################
+# MyPy — static type checking
+###############################################################################
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_any_generics = true
+check_untyped_defs = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_defs = false
+
+[[tool.mypy.overrides]]
+module = ["faiss.*", "rank_bm25.*", "ragas.*"]
+ignore_missing_imports = true
+
+###############################################################################
+# Pytest
+###############################################################################
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "-ra",
+    "--strict-markers",
+    "--strict-config",
+    "--cov=promtior_rag",
+    "--cov-report=term-missing",
+    "--cov-report=html:htmlcov",
+]
+markers = [
+    "integration: integration tests (may hit real APIs, slow)",
+    "slow: tests that take > 1 second",
+]
+asyncio_mode = "auto"

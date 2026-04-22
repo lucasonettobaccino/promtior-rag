@@ -8,6 +8,7 @@ from langchain_core.retrievers import BaseRetriever
 from langchain_core.runnables import Runnable, RunnableLambda, RunnablePassthrough
 from langchain_openai import ChatOpenAI
 
+from promtior_rag.api.schemas import ChatOutput
 from promtior_rag.chain.prompts import build_rag_prompt
 from promtior_rag.config import settings
 from promtior_rag.logging_config import get_logger
@@ -43,12 +44,16 @@ def build_rag_chain(retriever: BaseRetriever | None = None) -> Runnable:
 
     prompt = build_rag_prompt()
 
+    question_extractor = RunnableLambda(lambda x: x["question"] if isinstance(x, dict) else x)
+
     return (
-        {
+        question_extractor
+        | {
             "context": base_retriever | RunnableLambda(_format_docs),
             "question": RunnablePassthrough(),
         }
         | prompt
         | llm
         | StrOutputParser()
+        | RunnableLambda(lambda answer: ChatOutput(answer=answer))
     )

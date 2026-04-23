@@ -1,0 +1,55 @@
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg-info
+.pytest_cache
+.mypy_cache
+.ruff_cache
+htmlcov
+
+# Virtual environments
+.venv
+venv
+env
+
+# Data (regenerated inside the container or mounted at runtime)
+data/*
+!data/vector_store/
+!data/AI_Engineer.pdf
+
+# Git and VCS
+.git
+.gitignore
+
+# Secrets and local config
+.env
+.env.local
+
+# IDE
+.vscode
+.idea
+*.swp
+
+# Docker
+Dockerfile
+.dockerignore
+
+# Documentation and misc
+*.md
+!README.md
+doc/
+notebooks/
+evaluation/results/
+
+# Build artifacts
+build/
+dist/
+*.egg
+
+# OS
+.DS_Store
+Thumbs.db

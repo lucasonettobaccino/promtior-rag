@@ -1,3 +1,5 @@
+<!-- prettier-ignore-start -->
+
 # Project Overview
 
 ## Context
@@ -9,8 +11,10 @@ does Promtior offer?"_ and _"When was the company founded?"_. The stack was
 constrained to LangChain + LangServe, and deployment to a major cloud (AWS,
 Azure) was expected.
 
-The solution was built with production-grade defaults: observability, reproducible
-infrastructure, hardened prompts, and a deterministic retrieval pipeline.
+The solution applies production-oriented practices — infrastructure as code,
+multi-AZ deployment, observability, and secrets management — while keeping the
+scope honest: this is a demo deployment suitable for technical evaluation, not
+a hardened production system (see _Known limitations_ below).
 
 ## Approach
 
@@ -27,9 +31,11 @@ retrieval, not bad prompts. Effort was invested upfront in hybrid retrieval
 spending time tuning the system prompt.
 
 **Treat infrastructure as a first-class citizen.** The solution deploys to AWS
-ECS Fargate via Terraform — not Railway — because the goal was to demonstrate
-production readiness (VPC, multi-AZ, IaC, Secrets Manager, ALB health checks),
-not to ship the fastest path.
+ECS Fargate via Terraform — not Railway — to demonstrate a realistic cloud
+deployment: VPC with public/private subnets across two AZs, task definitions
+with secrets injected at runtime, ALB health checks, rolling deployments, and
+structured logging to CloudWatch. The deliberate trade-offs (single NAT Gateway,
+HTTP-only listener, local Terraform state) are documented in _Known limitations_.
 
 ## Implementation logic
 
@@ -127,9 +133,9 @@ language.
 ### 3. Multilingual retrieval coverage
 
 With language detection fixed, a secondary issue surfaced: Spanish
-questions sometimes failed to retrieve the right chunks. The AI_Engineer
-PDF contains the founding date in an English passage (_"In May 2023,
-Promtior was founded..."_). A Spanish query like _"¿Cuándo fue fundada?"_
+questions sometimes failed to retrieve the right chunks. The `AI_Engineer.pdf`
+contains the founding date in an English passage ("In May 2023,
+Promtior was founded..."). A Spanish query like _"¿Cuándo fue fundada?"_
 produces embeddings biased toward Spanish content, so the BM25 branch
 (lexical) found zero matches (no overlap between _"fundada"_ and
 _"founded"_), and the semantic branch ranked Spanish chunks higher than
@@ -148,10 +154,10 @@ the foundation for both language-matching and multilingual retrieval.
 ### 4. Wix SPA web scraping
 
 Promtior's website is built on Wix and renders content client-side.
-`RecursiveUrlLoader` (the standard LangChain web loader) follows `
-href>` tags in the initial HTML response, but Wix's SPA ships only a
-shell with navigation built by JavaScript at runtime. The loader found
-two pages and stopped.
+`RecursiveUrlLoader` (the standard LangChain web loader) follows anchor
+tags in the initial HTML response, but Wix's SPA ships only a shell with
+navigation built by JavaScript at runtime. The loader found two pages and
+stopped.
 
 `SitemapLoader` was used instead, pointing directly at
 `https://www.promtior.ai/sitemap.xml`. The sitemap is Wix-generated and
@@ -181,6 +187,48 @@ for being overkill when the sitemap is readily available.
 | IaC           | Terraform 1.9 + AWS provider ~5.70            | Reproducibility; entire stack destroys/recreates with one command.                                                     |
 | Front-end     | Single-file HTML + Tailwind (CDN) + marked.js | A small custom UI with Promtior branding, mounted from `/static`. Parses markdown, renders sources as clickable links. |
 
+## Known limitations & roadmap
+
+The following items are deliberate trade-offs for the scope of this technical
+test. Each would be addressed before running this as a real production service.
+
+**HTTP-only listener.** The ALB serves plain HTTP on port 80. A production
+deployment would require an ACM certificate, a listener on 443, and a redirect
+from 80 to 443. For a demo endpoint behind a generated ALB DNS name, HTTPS
+adds friction without meaningful security gain — any real deployment would be
+fronted by a custom domain with TLS.
+
+**No authentication or rate limiting on `/chat/invoke`.** The endpoint is
+publicly reachable and each call incurs OpenAI + Cohere costs. A simple API
+key header (validated at the ALB or application layer) or AWS WAF rate-based
+rules would cover this before opening the URL to external users.
+
+**Single NAT Gateway in AZ-a.** The private subnet in AZ-b routes egress
+through the NAT in AZ-a. If AZ-a becomes unavailable, tasks running in AZ-b
+lose outbound connectivity to OpenAI and Cohere. The production fix is one
+NAT Gateway per AZ (≈ +$32/month). Documented inline in `network.tf`.
+
+**Local Terraform state.** The `.tfstate` lives on the operator's machine,
+with no remote backend or state locking. An `s3` backend with a DynamoDB
+table for locking would be a one-file change and standard for any team of
+more than one.
+
+**AZs hardcoded to `us-east-1a` / `us-east-1b`.** The network module uses
+literal AZ names rather than `data "aws_availability_zones"`. Changing
+`var.aws_region` would require updating these in parallel. The dynamic
+approach was skipped deliberately to avoid touching the existing state.
+
+**No HTML sanitization on the chat UI.** The front-end renders the LLM's
+markdown response with `marked.js` without a sanitizer. Given the hardened
+system prompt and the deterministic chain, the attack surface is small, but
+adding DOMPurify would be standard defense-in-depth before exposing this to
+real users.
+
+**Minimal test coverage.** The `tests/` directory contains a handful of
+smoke tests (see _Technologies used_), not a comprehensive suite. A real
+project would add evaluation harnesses for retrieval (precision@k, MRR)
+and regression tests for the prompt's entity-attribution behavior.
+
 ## Summary
 
 The system demonstrates that a production-quality RAG can be assembled
@@ -191,3 +239,5 @@ handle real-world content that mixes languages and entities. Each of the
 four challenges above took iteration, but each resolution generalized:
 the language-analysis pipeline, for example, solved two distinct
 problems with a single architectural choice.
+
+<!-- prettier-ignore-end -->

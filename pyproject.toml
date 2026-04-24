@@ -80,6 +80,8 @@ mypy = "^1.13"
 ###############################################################################
 # Build system (required by Poetry 2.x)
 ###############################################################################
+pytest = "^9.0.3"
+pytest-mock = "^3.15.1"
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"

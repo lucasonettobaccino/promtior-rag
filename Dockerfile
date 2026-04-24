@@ -1,5 +1,5 @@
 # ---- Builder stage ----
-FROM python:3.13-slim AS builder
+FROM --platform=$BUILDPLATFORM python:3.13-slim AS builder
 
 ENV POETRY_VERSION=2.3.4 \
     POETRY_HOME="/opt/poetry" \
@@ -28,7 +28,7 @@ RUN poetry self add poetry-plugin-export \
 
 
 # ---- Runtime stage ----
-FROM python:3.13-slim AS runtime
+FROM --platform=$BUILDPLATFORM python:3.13-slim AS runtime
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \

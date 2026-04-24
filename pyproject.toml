@@ -2,9 +2,9 @@
 # promtior-rag — pyproject.toml
 #
 # Single source of truth for:
-#   - Package metadata (PEP 621 standard, compatible with any modern tool)
+#   - Package metadata (PEP 621 standard)
 #   - Runtime + dev dependencies (managed by Poetry 2.x)
-#   - Tooling config: ruff (lint), black (format), mypy (types), pytest (tests)
+#   - Tooling config: ruff (lint), black (format), mypy (types)
 #
 # Pinning strategy:
 #   - Use caret (^X.Y) for libraries we trust to follow SemVer.
@@ -64,7 +64,6 @@ dependencies = [
 
 [project.scripts]
 promtior-ingest = "promtior_rag.ingestion.pipeline:main"
-promtior-eval = "promtior_rag.evaluation.runner:main"
 promtior-serve = "promtior_rag.api.server:main"
 
 ###############################################################################
@@ -74,29 +73,9 @@ promtior-serve = "promtior_rag.api.server:main"
 packages = [{ include = "promtior_rag", from = "src" }]
 
 [tool.poetry.group.dev.dependencies]
-pytest = "^8.3"
-pytest-asyncio = "^0.25"
-pytest-cov = "^6.0"
-pytest-mock = "^3.14"
 ruff = "^0.8"
 black = "^24.10"
 mypy = "^1.13"
-pre-commit = "^4.0"
-jupyter = "^1.1"
-ipykernel = "^6.29"
-
-[tool.poetry.group.eval]
-optional = true
-
-[tool.poetry.group.eval.dependencies]
-ragas = "^0.2"
-datasets = "^3.2"
-
-[tool.poetry.group.frontend]
-optional = true
-
-[tool.poetry.group.frontend.dependencies]
-streamlit = "^1.41"
 
 ###############################################################################
 # Build system (required by Poetry 2.x)
@@ -111,7 +90,7 @@ build-backend = "poetry.core.masonry.api"
 [tool.ruff]
 line-length = 100
 target-version = "py311"
-src = ["src", "tests"]
+src = ["src"]
 
 [tool.ruff.lint]
 select = [
@@ -137,10 +116,6 @@ ignore = [
 [tool.ruff.lint.pydocstyle]
 convention = "google"
 
-[tool.ruff.lint.per-file-ignores]
-"tests/**/*.py" = ["D"]
-"notebooks/**/*.py" = ["D", "E501"]
-
 ###############################################################################
 # Black — formatting
 ###############################################################################
@@ -164,32 +139,5 @@ warn_redundant_casts = true
 warn_unused_ignores = true
 
 [[tool.mypy.overrides]]
-module = "tests.*"
-disallow_untyped_defs = false
-
-[[tool.mypy.overrides]]
-module = ["faiss.*", "rank_bm25.*", "ragas.*"]
+module = ["faiss.*", "rank_bm25.*"]
 ignore_missing_imports = true
-
-###############################################################################
-# Pytest
-###############################################################################
-[tool.pytest.ini_options]
-minversion = "8.0"
-testpaths = ["tests"]
-python_files = ["test_*.py"]
-python_classes = ["Test*"]
-python_functions = ["test_*"]
-addopts = [
-    "-ra",
-    "--strict-markers",
-    "--strict-config",
-    "--cov=promtior_rag",
-    "--cov-report=term-missing",
-    "--cov-report=html:htmlcov",
-]
-markers = [
-    "integration: integration tests (may hit real APIs, slow)",
-    "slow: tests that take > 1 second",
-]
-asyncio_mode = "auto"

@@ -16,7 +16,7 @@ htmlcov
 venv
 env
 
-# Data (regenerated inside the container or mounted at runtime)
+# Data: ignore by default, whitelist the index and PDF
 data/*
 !data/vector_store/
 !data/AI_Engineer.pdf
@@ -38,12 +38,11 @@ data/*
 Dockerfile
 .dockerignore
 
-# Documentation and misc
+# Documentation and config (not needed in the runtime image)
 *.md
 !README.md
 doc/
-notebooks/
-evaluation/results/
+infra/
 
 # Build artifacts
 build/

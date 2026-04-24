@@ -217,11 +217,4 @@ data/
 *.tfvars.json
 crash.log
 crash.*.log
-# Terraform
-.terraform/
-*.tfstate
-*.tfstate.*
-*.tfvars
-*.tfvars.json
-crash.log
-crash.*.log
+

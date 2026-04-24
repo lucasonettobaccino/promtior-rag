@@ -8,7 +8,6 @@ Sample questions the bot answers:
 
 - _What services does Promtior offer?_
 - _When was Promtior founded?_
-- _Quiénes son los fundadores?_ (the bot replies in the user's language)
 
 ## Documentation
 

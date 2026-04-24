@@ -1,55 +1,103 @@
-"""Language detection utilities for the RAG chain.
+"""Language detection + query translation for multilingual retrieval.
 
-Used to make the LLM's language matching deterministic: instead of relying
-on the model to infer the question's language from context (which can be
-overridden by the retrieved content's language), we detect it explicitly
-in code and inject the result into the prompt.
+Uses the LLM as a lightweight utility call to:
+1. Detect the language of the user's question (robust for short/noisy input).
+2. Translate non-English questions to English for retrieval (the corpus
+   is predominantly English, so EN queries match better).
+
+The LLM's original-language output for the FINAL answer is unaffected —
+we pass the detected language to the main prompt, which instructs the
+model to answer in the user's language.
 """
 
 from __future__ import annotations
 
-from langdetect import DetectorFactory, detect, LangDetectException
+import json
+from typing import TypedDict
 
+from langchain_core.output_parsers import JsonOutputParser
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_openai import ChatOpenAI
+
+from promtior_rag.config import settings
 from promtior_rag.logging_config import get_logger
 
 log = get_logger(__name__)
 
-# Seed the detector for reproducible results.
-# langdetect is non-deterministic by default (random sampling of features).
-DetectorFactory.seed = 0
 
-# Map ISO 639-1 codes to human-readable names the LLM responds to well.
-_LANGUAGE_NAMES: dict[str, str] = {
-    "en": "English",
-    "es": "Spanish",
-    "pt": "Portuguese",
-    "fr": "French",
-    "de": "German",
-    "it": "Italian",
-    "ja": "Japanese",
-    "zh-cn": "Chinese",
-    "zh-tw": "Chinese",
-}
-
-_DEFAULT_LANGUAGE = "English"
-_MIN_LENGTH = 3
+class LanguageAnalysis(TypedDict):
+    language: str
+    translated_query: str
 
 
-def detect_language(text: str) -> str:
-    """Detect the language of a text and return a human-readable name.
+_DETECTION_PROMPT = ChatPromptTemplate.from_messages(
+    [
+        (
+            "system",
+            """You are a language detection and translation utility.
 
-    Falls back to English on detection failure (empty input, too short,
-    ambiguous text). This is a safe default because the prompt's base
-    behavior is English-first.
+Given a user question, return a JSON object with TWO fields:
+1. "language": the full name of the question's language in English \
+("English", "Spanish", "Portuguese", "French", etc.).
+2. "translated_query": the question translated to English for document retrieval. \
+If the question is already in English, return it as-is.
+
+Rules:
+- Preserve proper nouns (company names, product names, person names) unchanged.
+- Keep the translation concise and semantically equivalent.
+- Respond ONLY with valid JSON. No preamble, no explanation.
+
+Examples:
+Question: "When was Promtior founded?"
+Response: {{"language": "English", "translated_query": "When was Promtior founded?"}}
+
+Question: "Que servicios ofrece Promtior?"
+Response: {{"language": "Spanish", "translated_query": "What services does Promtior offer?"}}
+
+Question: "Quais sao os clientes da Promtior?"
+Response: {{"language": "Portuguese", "translated_query": "Who are Promtior's clients?"}}
+""",
+        ),
+        ("human", "Question: {question}"),
+    ]
+)
+
+
+def build_language_analyzer() -> ChatOpenAI:
+    """Build a cheap LLM instance for language detection + translation.
+
+    We use the same model as the main chain for consistency, but with
+    low max_tokens since the JSON response is short.
     """
-    if not text or len(text.strip()) < _MIN_LENGTH:
-        return _DEFAULT_LANGUAGE
+    return ChatOpenAI(
+        model=settings.llm_model,
+        temperature=0.0,
+        max_tokens=200,
+        api_key=settings.openai_api_key.get_secret_value(),
+    )
+
+
+def analyze_question(question: str) -> LanguageAnalysis:
+    """Detect the question's language and produce an English translation.
+
+    Returns a dict with 'language' and 'translated_query'. On parsing
+    failure, defaults to English (no translation needed).
+    """
+    llm = build_language_analyzer()
+    chain = _DETECTION_PROMPT | llm | JsonOutputParser()
 
     try:
-        code = detect(text)
-        language = _LANGUAGE_NAMES.get(code, _DEFAULT_LANGUAGE)
-        log.debug("language_detected", text_preview=text[:50], code=code, language=language)
-        return language
-    except LangDetectException as exc:
-        log.warning("language_detection_failed", text_preview=text[:50], error=str(exc))
-        return _DEFAULT_LANGUAGE
+        result = chain.invoke({"question": question})
+        language = result.get("language", "English")
+        translated = result.get("translated_query", question)
+        log.debug(
+            "language_analysis",
+            question_preview=question[:50],
+            detected=language,
+            translated=translated[:50],
+        )
+        return {"language": language, "translated_query": translated}
+    except Exception as exc:
+        log.warning("language_analysis_failed", error=str(exc), question_preview=question[:50])
+        # Safe fallback: treat as English, no translation.
+        return {"language": "English", "translated_query": question}

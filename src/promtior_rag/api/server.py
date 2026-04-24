@@ -5,6 +5,7 @@ from __future__ import annotations
 from dotenv import load_dotenv
 load_dotenv()
 
+import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import AsyncIterator
@@ -25,10 +26,26 @@ log = get_logger(__name__)
 STATIC_DIR = Path(__file__).parent / "static"
 
 
+def _configure_langsmith() -> None:
+    """Export LangSmith settings to the environment so the SDK picks them up.
+
+    LangSmith's SDK reads from os.environ, not from our Settings object.
+    Without this, tracing would only work in ECS (which sets the env vars
+    directly in the task definition) but not locally with a .env file.
+    """
+    if not settings.langsmith_tracing or settings.langsmith_api_key is None:
+        return
+
+    os.environ["LANGSMITH_TRACING"] = "true"
+    os.environ["LANGSMITH_API_KEY"] = settings.langsmith_api_key.get_secret_value()
+    os.environ["LANGSMITH_PROJECT"] = settings.langsmith_project
+    os.environ["LANGSMITH_ENDPOINT"] = settings.langsmith_endpoint
+
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     """Initialize resources on startup, clean up on shutdown."""
     configure_logging()
+    _configure_langsmith()
     log.info(
         "server.startup",
         host=settings.server_host,

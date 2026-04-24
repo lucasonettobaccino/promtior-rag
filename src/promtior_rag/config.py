@@ -47,7 +47,7 @@ class Settings(BaseSettings):
     langsmith_project: str = "promtior-rag"
     langsmith_endpoint: str = "https://api.smith.langchain.com"
 
-    promtior_web_url: str = "https://promtior.ai/"
+    promtior_web_url: str = "https://www.promtior.ai/sitemap.xml"
     promtior_web_max_depth: int = Field(default=3, ge=1, le=5)
     promtior_pdf_path: Path = Path("./data/AI_Engineer.pdf")
 

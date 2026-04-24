@@ -9,6 +9,7 @@ from langchain_core.runnables import Runnable, RunnableLambda, RunnablePassthrou
 from langchain_openai import ChatOpenAI
 
 from promtior_rag.api.schemas import ChatOutput
+from promtior_rag.chain.language import detect_language
 from promtior_rag.chain.prompts import build_rag_prompt
 from promtior_rag.config import settings
 from promtior_rag.logging_config import get_logger
@@ -51,6 +52,7 @@ def build_rag_chain(retriever: BaseRetriever | None = None) -> Runnable:
         | {
             "context": base_retriever | RunnableLambda(_format_docs),
             "question": RunnablePassthrough(),
+            "language": RunnableLambda(detect_language),
         }
         | prompt
         | llm
